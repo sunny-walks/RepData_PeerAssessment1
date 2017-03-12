@@ -5,21 +5,108 @@ output:
     keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(error = TRUE, warning = FALSE)
+```
 
 ## Loading and preprocessing the data
-
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", destfile = "./r/activity.zip",method = "curl")
+unzip("./r/activity/activity.zip", exdir = "./r/activity/")
+amdata<- read.csv("./r/activity/activity.csv", stringsAsFactors = FALSE)
+amdata$date<- as.Date(amdata$date,"%Y-%m-%d")
+```
 
 
 ## What is mean total number of steps taken per day?
+Histogram of the total number of steps taken each day
+```{r}
+library(ggplot2)
+ggplot(data = amdata,
+  aes(date, steps)) +
+  stat_summary(fun.y = sum,
+    geom = "bar") 
+```
 
-
+Calculate and report the mean and median total number of steps taken per day
+```{r}
+q3sum <- aggregate(steps ~ date, amdata, sum)
+q3mean <- aggregate(steps ~ date, amdata, mean)
+q3median <- aggregate(steps ~ date, amdata, median, na.rm=TRUE)
+q3data <- merge(q3sum, q3mean, by = "date")
+q3data <- merge(q3data, q3median, by = "date")
+q3data <- setNames(q3data, c("Date", "Total steps", "Mean", "Median"))
+q3data
+```
 
 ## What is the average daily activity pattern?
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis). Time format for interval is not changed: 0 => 00:00, 500 => 05:00, 1500 => 15:00
+```{r}
+cleandata <- amdata[!is.na(amdata$steps),] ## exclude NA values
+q4data <- aggregate(steps~interval, data=cleandata, FUN=mean) 
+library(ggplot2)
+qplot(x=interval, y=steps, data = q4data, geom="line")
+```
 
-
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+q4data[max(q4data$steps),]
+```
 
 ## Imputing missing values
-
-
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+``` {r}
+sum(is.na(amdata$steps))
+```
+Strategy for filling in all of the missing values in the dataset: average for each 5-minute interval across all days. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+``` {r}
+q6data <- amdata
+for(i in which(is.na(q6data[, "steps"]))) {
+  q6data$steps[i] <- q4data[q6data$interval[i]==q4data$interval,"steps"]
+}
+```
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. 
+```{r}
+library(ggplot2)
+ggplot(data = q6data,
+  aes(date, steps)) +
+  stat_summary(fun.y = sum, # adds up all observations for the date
+    geom = "bar") +
+  geom_line()
+```
+``` {r}
+q7sum <- aggregate(steps ~ date, q6data, sum)
+q7mean <- aggregate(steps ~ date, q6data, mean)
+q7median <- aggregate(steps ~ date, q6data, median)
+q7data <- merge(q7sum, q7mean, by = "date")
+q7data <- merge(q7data, q7median, by = "date")
+q7data <- setNames(q7data, c("Date", "Total steps", "Mean", "Median"))
+q7data
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r}
+q8data<- q6data
+library(lubridate)
+q8data$date<- as.POSIXct(q6data$date, format="%Y-%m-%d")
+q8weekends<- q8data[wday(q8data$date) %in% 6:7,]
+q8weekdays<- q8data[wday(q8data$date) %in% 1:5,]
+```
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+```{r}
+library(ggplot2)
+ggplot(data = q8weekdays,
+  aes(interval, steps)) +
+  stat_summary(fun.y = mean, 
+  geom = "bar")+
+  ggtitle("Weekdays")
+```
+```{r}
+library(ggplot2)
+ggplot(data = q8weekends,
+  aes(interval, steps)) +
+  stat_summary(fun.y = mean, 
+    geom = "bar")+
+  ggtitle("Weekends") 
+```
